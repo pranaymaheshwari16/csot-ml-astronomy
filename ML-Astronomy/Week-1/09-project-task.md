@@ -8,7 +8,7 @@
 
 > **Part 1 — Foundations.** Set up a Google Colab notebook with the GPU runtime enabled, verify the GPU is active in PyTorch, create a random tensor shaped like a galaxy image, and move it to the GPU.
 >
-> **Part 2 — Data pipeline.** Download the Galaxy Zoo 2 dataset, wrap it in an `ImageFolder` with a `transforms` pipeline, build a `DataLoader`, and plot a batch of real galaxies with `matplotlib`.
+> **Part 2 — Data pipeline.** Download the Galaxy Zoo 2 dataset, join the official morphology labels to the flat JPG files, build an `ImageFolder`-ready folder layout, wrap it in `ImageFolder` with a `transforms` pipeline, build a `DataLoader`, and plot a batch of real galaxies with `matplotlib`.
 
 Part 1 confirms your environment works. Part 2 produces the data pipeline that feeds every model in the rest of the track.
 
@@ -46,13 +46,15 @@ Each step maps to a cell (or small group of cells) in `week1_starter.ipynb`.
 
 Each step maps to a cell in `week1_data_starter.ipynb`.
 
-- [ ] **Step 1.** Get the dataset into Colab. Either use the Kaggle API (`kaggle datasets download -d jaimetrickz/galaxy-zoo-2-images`) with your `kaggle.json` token, or download a small curated subset provided in the notebook. Unzip it.
-- [ ] **Step 2.** Inspect the on-disk folder structure. Confirm it looks like `root/<class_name>/<image>.jpg`.
-- [ ] **Step 3.** Build a `transforms.Compose([...])` pipeline: `Resize((64, 64))`, `ToTensor()`, `Normalize([0.5]*3, [0.5]*3)`.
-- [ ] **Step 4.** Wrap the folder in `torchvision.datasets.ImageFolder(root=..., transform=...)`. Print `len(dataset)`, `dataset.classes`, and `dataset.class_to_idx`.
-- [ ] **Step 5.** Fetch one sample: `image, label = dataset[0]`. Print `image.shape` (expect `(3, 64, 64)`) and the integer `label`.
-- [ ] **Step 6.** Create a `DataLoader` with `batch_size=32`, `shuffle=True`. Grab one batch with `next(iter(loader))` and print `images.shape` (expect `(32, 3, 64, 64)`) and `labels.shape`.
-- [ ] **Step 7.** Plot a grid of ~16 images from the batch with `matplotlib` / `torchvision.utils.make_grid`. **Remember:** undo the normalisation (`x*0.5 + 0.5`) and `.permute(1, 2, 0)` before `imshow`. Overlay or print the class names.
+- [ ] **Step 1.** Get the dataset into Colab via the Kaggle API (`kaggle datasets download -d jaimetrickz/galaxy-zoo-2-images`) with your `kaggle.json` token. Unzip `images_gz2.zip` and download the Hart et al. (2016) label CSV from [data.galaxyzoo.org](https://data.galaxyzoo.org/) (`gz2_hart16.csv.gz`).
+- [ ] **Step 2.** Inspect the **raw** layout: flat `{asset_id}.jpg` files plus `gz2_filename_mapping.csv` — *not* class subfolders.
+- [ ] **Step 3.** Merge `gz2_filename_mapping.csv` with `gz2_hart16.csv` on `objid` (rename `dr7objid` first). Collapse `gz2_class` to high-level labels. Print label counts.
+- [ ] **Step 4.** Symlink (or copy) images into `galaxy_data/{train,val,test}/<class_name>/`. Split each class ~70% / 15% / 15%.
+- [ ] **Step 5.** Build a `transforms.Compose([...])` pipeline: `Resize((64, 64))`, `ToTensor()`, `Normalize([0.5]*3, [0.5]*3)`.
+- [ ] **Step 6.** Create three `ImageFolder`s for `train`, `val`, and `test`. Print `len`, `classes`, and `class_to_idx`.
+- [ ] **Step 7.** Fetch one training sample; print `image.shape` and `label`.
+- [ ] **Step 8.** Create `DataLoader`s for each split (`shuffle=True` for train only). Print one batch shape.
+- [ ] **Step 9.** Plot a grid of ~16 training images. Undo normalisation and `.permute(1, 2, 0)` before `imshow`. Print class names.
 
 ---
 
@@ -62,7 +64,7 @@ Your submission counts as complete when, on a fresh Colab session:
 
 1. **Both** notebooks run top-to-bottom (`Runtime → Restart and run all`) **without errors**.
 2. **Part 1:** `torch.cuda.is_available()` prints `True`, and the tensor's `.device` prints `cuda:0` after the move.
-3. **Part 2:** `ImageFolder` reports a non-zero image count and a sensible `class_to_idx`; a `DataLoader` batch has shape `(32, 3, 64, 64)`; and the plotted grid shows recognisable galaxies with correct labels.
+3. **Part 2:** Three `ImageFolder` splits (`train`/`val`/`test`) each report a non-zero image count and matching `class_to_idx`; a training `DataLoader` batch has shape `(32, 3, 64, 64)`; the plotted grid shows recognisable galaxies with correct labels.
 4. Both notebooks are saved to your Drive *or* pushed to your fork so a mentor can review them.
 
 ---
@@ -122,10 +124,15 @@ Download the `.ipynb` from this folder, then in Colab use **File → Upload note
 
 ## Getting the Dataset (Part 2)
 
-The full dataset lives on Kaggle: [Galaxy Zoo 2 Images](https://www.kaggle.com/datasets/jaimetrickz/galaxy-zoo-2-images). Two ways in:
+The full dataset lives on Kaggle: [Galaxy Zoo 2 Images](https://www.kaggle.com/datasets/jaimetrickz/galaxy-zoo-2-images). Important: the download is **not** pre-sorted by morphology class. You get:
 
-- **Kaggle API (recommended).** Create a Kaggle account → Account → "Create New API Token" → download `kaggle.json`. Upload it to Colab, then `kaggle datasets download -d jaimetrickz/galaxy-zoo-2-images`. The data notebook walks through this.
-- **Curated subset.** For a fast first run you don't need all ~250k images. The starter notebook shows how to take a small, balanced subset so loading and plotting are quick on Colab.
+- `images_gz2.zip` — flat JPGs named `{asset_id}.jpg`
+- `gz2_filename_mapping.csv` — links each JPG to an SDSS `objid`
+
+Morphology labels come from the official GZ2 catalogue ([Hart et al. 2016 Table 1](https://data.galaxyzoo.org/), `gz2_hart16.csv.gz`). The data notebook merges these files and builds an `ImageFolder`-ready layout.
+
+- **Kaggle API (recommended).** Create a Kaggle account → Account → "Create New API Token" → download `kaggle.json`. Upload it to Colab, then follow the download cells in the data notebook.
+- **Balanced subset.** For a fast first run you don't need all ~243k images. Symlink ~200 galaxies per class (as the solution notebook does) so loading and plotting stay quick on Colab.
 
 > Reminder from [`07-photometry-and-filters.md`](07-photometry-and-filters.md): each image is a false-colour `(3, H, W)` composite of the SDSS `i/r/g` bands. The "colours" you plot are real measurements in different wavelength bands.
 
